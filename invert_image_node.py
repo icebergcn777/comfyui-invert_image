@@ -25,7 +25,7 @@ class InvertImageNode:
         image_out = 1.0 - image_in
         return (image_out,)
     
-#CATEGORY: "example"というカテゴリ名。
+#CATEGORY: "example"というカテゴリ名
 #INPUT_TYPES: "required"パラメータとして"image_in": ("IMAGE", {})を1つ準備。
 #FUNCTION: このクラスのinvertメソッドを実行メソッドに指定。
 #invertメソッド: 第1引数にself、第2引数にINPUT_TYPESで定義したimage_inを受け取り、処理結果をタプル(image_out,)で返す。
