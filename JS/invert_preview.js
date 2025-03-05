@@ -1,53 +1,31 @@
 import { app } from "../../../scripts/app.js"; //app: ComfyUIのメインアプリケーションオブジェクト。ノードの登録や管理を行います
 import { api } from "../../../scripts/api.js"; //api: ComfyUIのAPIクライアント。サーバーとの通信を担当します
 
-/*画像反転ノードのプレビュー機能を実装する拡張機能*/
+/* 画像反転ノードのプレビュー機能を実装する拡張機能 */
 
 app.registerExtension({
     name: "Comfy.InvertImagePreview",
-
-/*
-* ノード定義の登録前に呼び出される処理
-* @param {Object} nodeType - ノードの型定義
-* @param {Object} nodeData - ノードのデータ
-* @param {Object} app - ComfyUIのアプリケーションインスタンス
-*/
-
-    async beforeRegisterNodeDef(nodeType, nodeData, app) {
-        // InvertImageノードの場合のみ処理
-        if (nodeType.comfyClass !== "InvertImage") return;
     
-        // ここに実装を追加していきます
-    }
-});
-
-/*
-1.registerExtension
- ·ComfyUIに拡張機能を登録するメソッド
- ·一意な名前（ここではComfy.InvertImagePreview）を付ける必要があります
-2.beforeRegisterNodeDef
- ·ノードが登録される前に呼び出されるフック関数
- ·引数：
-  ·nodeType: ノードの型定義
-  ·nodeData: ノードのメタデータ
-  ·app: ComfyUIアプリケーションインスタンス
-3.comfyClass確認
- ·自分のノード（InvertImage）の場合のみ処理を行うための条件分岐*/
-
-//プレビュー表示用のコンテナを作成する関数を実装します
-
-/*
-* プレビューホストを作成する関数
-* @param {Object} node - ノードインスタンス
-* @returns {Object} プレビューホストのインターフェース
-*/
-
-function createPreviewHost(node) {
-    // コンテナ要素の作成
+    /*
+    * ノード定義の登録前に呼び出される処理
+    * @param {Object} nodeType - ノードの型定義
+    * @param {Object} nodeData - ノードのデータ
+    * @param {Object} app - ComfyUIのアプリケーションインスタンス
+    */
+    async beforeRegisterNodeDef(nodeType, nodeData, app) {
+    // InvertImageノードの場合のみ処理を行う
+    if (nodeType.comfyClass !== "InvertImage") return;
+    
+    /**
+    * プレビューホストを作成する関数
+    * @param {Object} node - ノードインスタンス
+    * @returns {Object} プレビューホストのインターフェース
+    */
+    function createPreviewHost(node) {
+    // プレビュー用のコンテナ要素を作成
     const container = document.createElement("div");
     container.className = "comfy-img-preview";
-    
-    // スタイルの設定
+    // コンテナのスタイル設定
     container.style.minHeight = "200px";
     container.style.minWidth = "100px";
     container.style.maxHeight = "300px";
@@ -57,321 +35,128 @@ function createPreviewHost(node) {
     container.style.alignItems = "center";
     container.style.marginTop = "10px";
     container.style.overflow = "hidden";
-    container.style.borderRadius = "4px";
     
-    // 状態管理用の変数
+    // 現在表示中の画像の参照を保持
     let currentImages = null;
     let firstUpdate = true;
     
-    // プレビューのサイズ更新処理
+    /**
+    * プレビュー画像のサイズを更新する関数
+    * ノードのサイズに合わせて画像を適切にスケーリングします
+    */
     function updatePreviewSize() {
     if (!currentImages) return;
     
     const nodeWidth = node.size[0];
     const containerHeight = container.clientHeight;
     
-    // 初回更新時の処理
+    // 最初の更新時は最小高さを設定
     if (firstUpdate) {
-        firstUpdate = false;
-        if (containerHeight < 200) {
-            container.style.minHeight = "200px";
-        }
+    firstUpdate = false;
+    if (containerHeight < 200) {
+    container.style.minHeight = "200px";
+    }
     }
     
-    // アスペクト比を保持したサイズ計算
+    // アスペクト比を保持しながら、プレビュー画像のサイズを計算
     const { naturalWidth, naturalHeight } = currentImages[0];
     const scale = Math.min(
-        (nodeWidth - 20) / naturalWidth, // 横幅に合わせたスケール
-        containerHeight / naturalHeight, // 高さに合わせたスケール
-        1                                // 最大スケール（等倍）
+    (nodeWidth - 20) / naturalWidth, // 横幅に合わせたスケール
+    containerHeight / naturalHeight, // 高さに合わせたスケール
+    1 // 最大スケール（等倍）
     );
     
     // 計算したサイズを適用
     const width = Math.floor(naturalWidth * scale);
     const height = Math.floor(naturalHeight * scale);
     
+    // バッチ内の全画像にサイズを適用
     currentImages.forEach(img => {
-        img.style.width = width + "px";
-        img.style.height = height + "px";
-        img.style.objectFit = "contain";
+    img.style.width = width + "px";
+    img.style.height = height + "px";
+    img.style.objectFit = "contain"; // アスペクト比を保持
     });
     }
     
-    // プレビューホストのインターフェース
+    // プレビューホストのインターフェースを返す
     return {
-        element: container,
+    element: container, // DOM要素
     
-        // 画像更新メソッド
-        updateImages(imgs) {
-            if (imgs !== currentImages) {
-                container.replaceChildren(...imgs);
-                currentImages = imgs;
-                requestAnimationFrame(() => {
-                    updatePreviewSize();
-                });
-            node.onResize?.(node.size);
-        }
+    /**
+    * プレビュー画像を更新する関数
+    * @param {Array<HTMLImageElement>} imgs - 新しい画像要素の配列
+    */
+    updateImages(imgs) {
+    if (imgs !== currentImages) {
+    // 画像を更新
+    container.replaceChildren(...imgs);
+    currentImages = imgs;
+    // サイズ更新を次のフレームで実行
+    requestAnimationFrame(() => {
+    updatePreviewSize();
+    });
+    // ノードのリサイズイベントを発火
+    node.onResize?.(node.size);
+    }
     },
     
+    // サイズ更新関数を外部に公開
     updateSize: updatePreviewSize
     };
-}
-
-/*
-1. コンテナ要素の構造
-・「div」要素をベースに作成
-・Flexboxレイアウトを使用して中央配置
-・最小/最大サイズの制限による適切な表示領域の確保
-
-2. サイズ計算ロジック
-・ノードの幅とコンテナの高さを考慮
-・アスペクト比を保持したスケーリング
-・画像が大きすぎる場合の縮小処理
-
-3. 状態管理
-・「currentImages」で現在表示中の画像を管理
-・「firstUpdate」フラグで初期化処理を制御*/
-
-//作成したプレビューホストをノードに統合します-------------------
-
-// ノード作成時の処理
-const onNodeCreated = nodeType.prototype.onNodeCreated;
-nodeType.prototype.onNodeCreated = function() {
+    }
+    
+    // ノード作成時の処理をカスタマイズ
+    const onNodeCreated = nodeType.prototype.onNodeCreated;
+    nodeType.prototype.onNodeCreated = function() {
     const result = onNodeCreated?.apply(this, arguments);
-
+    
     // プレビューホストを作成してノードに追加
     this.previewHost = createPreviewHost(this);
-    this.widgets?.length &&
-    this.widgets[0].element.appendChild(this.previewHost.element);
-
+    // 最初のウィジェットの要素にプレビューを追加
+    this.widgets?.length && this.widgets[0].element.appendChild(this.previewHost.element);
+    
     return result;
-};
-
-// リサイズ時の処理
-const onResize = nodeType.prototype.onResize;
-nodeType.prototype.onResize = function(size) {
+    };
+    
+    // ノードのサイズ変更時の処理をカスタマイズ
+    const onResize = nodeType.prototype.onResize;
+    nodeType.prototype.onResize = function(size) {
     const result = onResize?.apply(this, arguments);
+    // プレビューのサイズを更新
     this.previewHost?.updateSize();
     return result;
-};
-
-// 実行完了時の処理
-const onExecuted = nodeType.prototype.onExecuted;
-nodeType.prototype.onExecuted = async function(message) {
+    };
+    
+    // ノードの実行完了時の処理をカスタマイズ
+    const onExecuted = nodeType.prototype.onExecuted;
+    nodeType.prototype.onExecuted = async function(message) {
     const result = onExecuted?.apply(this, arguments);
-
-    // プレビュー更新
+    
+    // UIメッセージに画像情報が含まれている場合
     if (message?.ui?.images) {
-        try {
-            // 画像の非同期読み込み
-            const images = await Promise.all(
-                message.ui.images.map(async (img) => {
-                    // 画像URLの生成
-                    const url = api.apiURL(
-                        `/view?filename=${encodeURIComponent(img.filename)}` +`&type=${img.type}`
-                    );
-
-                    // 画像要素の作成と読み込み
-                    const imgElement = new Image();
-                    imgElement.src = url;
-
-                    // 読み込み完了を待機
-                    return new Promise((resolve, reject) => {
-                        imgElement.onload = () => resolve(imgElement);
-                        imgElement.onerror = reject;
-                    });
-                }
-            ));
-
-            // プレビューを更新
-            this.previewHost.updateImages(images);
-        } catch (error) {
-            console.error("Failed to update preview:", error);
-        }
+    try {
+    // 全ての画像を非同期で読み込む
+    const images = await Promise.all(
+    message.ui.images.map(async (img) => {
+    // 画像URLを生成
+    const url = api.apiURL(`/view?filename=${encodeURIComponent(img.filename)}&type=${img.type}`);
+    const imgElement = new Image();
+    imgElement.src = url;
+    // 画像の読み込み完了を待つ
+    return new Promise((resolve, reject) => {
+    imgElement.onload = () => resolve(imgElement);
+    imgElement.onerror = reject;
+    });
+    })
+    );
+    // プレビューを更新
+    this.previewHost.updateImages(images);
+    } catch (error) {
+    console.error("Failed to update preview:", error);
     }
-
+    }
+    
     return result;
-};
-
-
-import { app } from "../../../scripts/app.js";
-import { api } from "../../../scripts/api.js";
-
-/**
-* 画像反転ノードのプレビュー機能を実装する拡張機能
-*/
-app.registerExtension({
-name: "Comfy.InvertImagePreview",
-
-/**
-* ノード定義の登録前に呼び出される処理
-* @param {Object} nodeType - ノードの型定義
-* @param {Object} nodeData - ノードのデータ
-* @param {Object} app - ComfyUIのアプリケーションインスタンス
-*/
-async beforeRegisterNodeDef(nodeType, nodeData, app) {
-// InvertImageノードの場合のみ処理を行う
-if (nodeType.comfyClass !== "InvertImage") return;
-
-/**
-* プレビューホストを作成する関数
-* @param {Object} node - ノードインスタンス
-* @returns {Object} プレビューホストのインターフェース
-*/
-function createPreviewHost(node) {
-// プレビュー用のコンテナ要素を作成
-const container = document.createElement("div");
-container.className = "comfy-img-preview";
-// コンテナのスタイル設定
-container.style.minHeight = "200px";
-container.style.minWidth = "100px";
-container.style.maxHeight = "300px";
-container.style.backgroundColor = "#1e1e1e";
-container.style.display = "flex";
-container.style.justifyContent = "center";
-container.style.alignItems = "center";
-container.style.marginTop = "10px";
-container.style.overflow = "hidden";
-
-// 現在表示中の画像の参照を保持
-let currentImages = null;
-let firstUpdate = true;
-
-/**
-* プレビュー画像のサイズを更新する関数
-* ノードのサイズに合わせて画像を適切にスケーリングします
-*/
-function updatePreviewSize() {
-if (!currentImages) return;
-
-const nodeWidth = node.size[0];
-const containerHeight = container.clientHeight;
-
-// 最初の更新時は最小高さを設定
-if (firstUpdate) {
-firstUpdate = false;
-if (containerHeight < 200) {
-container.style.minHeight = "200px";
-}
-}
-
-// アスペクト比を保持しながら、プレビュー画像のサイズを計算
-const { naturalWidth, naturalHeight } = currentImages[0];
-const scale = Math.min(
-(nodeWidth - 20) / naturalWidth, // 横幅に合わせたスケール
-containerHeight / naturalHeight, // 高さに合わせたスケール
-1 // 最大スケール（等倍）
-);
-
-// 計算したサイズを適用
-const width = Math.floor(naturalWidth * scale);
-const height = Math.floor(naturalHeight * scale);
-
-// バッチ内の全画像にサイズを適用
-currentImages.forEach(img => {
-img.style.width = width + "px";
-img.style.height = height + "px";
-img.style.objectFit = "contain"; // アスペクト比を保持
-});
-}
-
-// プレビューホストのインターフェースを返す
-return {
-element: container, // DOM要素
-
-/**
-* プレビュー画像を更新する関数
-* @param {Array<HTMLImageElement>} imgs - 新しい画像要素の配列
-*/
-updateImages(imgs) {
-if (imgs !== currentImages) {
-// 画像を更新
-container.replaceChildren(...imgs);
-currentImages = imgs;
-// サイズ更新を次のフレームで実行
-requestAnimationFrame(() => {
-updatePreviewSize();
-});
-// ノードのリサイズイベントを発火
-node.onResize?.(node.size);
-}
-},
-
-// サイズ更新関数を外部に公開
-updateSize: updatePreviewSize
-};
-}
-
-// ノード作成時の処理をカスタマイズ
-const onNodeCreated = nodeType.prototype.onNodeCreated;
-nodeType.prototype.onNodeCreated = function() {
-const result = onNodeCreated?.apply(this, arguments);
-
-// プレビューホストを作成してノードに追加
-this.previewHost = createPreviewHost(this);
-// 最初のウィジェットの要素にプレビューを追加
-this.widgets?.length && this.widgets[0].element.appendChild(this.previewHost.element);
-
-return result;
-};
-
-// ノードのサイズ変更時の処理をカスタマイズ
-const onResize = nodeType.prototype.onResize;
-nodeType.prototype.onResize = function(size) {
-const result = onResize?.apply(this, arguments);
-// プレビューのサイズを更新
-this.previewHost?.updateSize();
-return result;
-};
-
-// ノードの実行完了時の処理をカスタマイズ
-const onExecuted = nodeType.prototype.onExecuted;
-nodeType.prototype.onExecuted = async function(message) {
-const result = onExecuted?.apply(this, arguments);
-
-// UIメッセージに画像情報が含まれている場合
-if (message?.ui?.images) {
-try {
-// 全ての画像を非同期で読み込む
-const images = await Promise.all(
-message.ui.images.map(async (img) => {
-// 画像URLを生成
-const url = api.apiURL(`/view?filename=${encodeURIComponent(img.filename)}&type=${img.type}`);
-const imgElement = new Image();
-imgElement.src = url;
-// 画像の読み込み完了を待つ
-return new Promise((resolve, reject) => {
-imgElement.onload = () => resolve(imgElement);
-imgElement.onerror = reject;
-});
-})
-);
-// プレビューを更新
-this.previewHost.updateImages(images);
-} catch (error) {
-console.error("Failed to update preview:", error);
-}
-}
-
-return result;
-};
-}
-});
-
-
-
-/*
-1. onNodeCreated
-・ノードが作成された時に呼ばれる
-・プレビューホストを初期化
-・ノードのUI要素にプレビュー領域を追加
-
-2. onResize
-・ノードのサイズが変更された時に呼ばれる
-・プレビュー画像のサイズを再計算
-・レスポンシブな表示を実現
-
-3. onExecuted
-・ノードの処理が完了した時に呼ばれる
-・バックエンドから受け取った画像情報を処理
-・非同期での画像読み込みとエラーハンドリング*/
+    };
+    }
+    });
